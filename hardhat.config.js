@@ -5,6 +5,7 @@ require('@nomiclabs/hardhat-waffle');
 require('hardhat-deploy');
 require('hardhat-gas-reporter');
 require('hardhat-contract-sizer');
+require('hardhat-abi-exporter');
 require('solidity-coverage');
 
 const loggingEnabled = process.env.EVM_LOGGING === '1';
@@ -18,6 +19,7 @@ const networks = {
   // This is used as a profile for booting up the local network / testing
   hardhat: {
     logged: loggingEnabled,
+    chainId: 1337,
   },
 };
 
@@ -46,7 +48,11 @@ module.exports = {
     enabled: testReportGas,
     showMethodSig: true,
   },
+  abiExporter: {
+    clear: true,
+    flat: true,
+  },
   solidity: {
-    version: '0.8.3',
+    version: '0.8.4',
   },
 };

@@ -1,14 +1,14 @@
 
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.3;
+pragma solidity 0.8.4;
 
 /**
  * This is a replica of the existing deployed TPA token contract.
  * It is used only for testing, and is not intended for Mainnet or Testnet deployment.
  */
 
- import { Ownable } from "./Ownable.sol";
- import { IERC20 } from "./IERC20.sol";
+import { Ownable } from "./Ownable.sol";
+import { IERC20 } from "./IERC20.sol";
 
 library Roles {
     struct Role {

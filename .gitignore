@@ -1,4 +1,5 @@
 build/
+abi/
 node_modules/
 coverage/
 analysis/output
