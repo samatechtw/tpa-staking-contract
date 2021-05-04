@@ -20,6 +20,8 @@ const networks = {
   hardhat: {
     logged: loggingEnabled,
     chainId: 1337,
+    auto: false,
+    interval: 5000,
   },
 };
 
