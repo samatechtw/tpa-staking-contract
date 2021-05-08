@@ -10,7 +10,6 @@
     "lint": "node_modules/.bin/eslint ./test ./scripts *.js",
     "lint:solidity": "npx hardhat check",
     "dev": "npx hardhat node",
-    "backup-contracts": "node scripts/backup-contracts.js",
     "deploy-contracts": "npx hardhat run --network localRPC scripts/deploy.js"
   },
   "repository": {

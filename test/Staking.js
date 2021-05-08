@@ -66,6 +66,12 @@ describe('Token contract', () => {
     const low = minimumStake - toBN(1);
     await tpaToken.approve(tpaStaking.address, low);
     await shouldRevert(tpaStaking.stake(low), 'Stake too low');
+
+    // Only admin can post dividends
+    await shouldRevert(
+      tpaStaking.connect(u1).postDividend(stake),
+      'Only admin',
+    );
   });
 
   it('Should unstake correctly without rewards', async () => {
@@ -100,7 +106,10 @@ describe('Token contract', () => {
     await assertUnstake({ tpaToken, tpaStaking, signer: u1, expectedTpa });
     await assertUnstake({ tpaToken, tpaStaking, signer: u2, expectedTpa });
 
-    await postDividend(tpaToken, tpaStaking, stake);
+    // Add an admin for posting dividends
+    await tpaStaking.addAdmin(u1.address);
+    await tpaToken.connect(u1).approve(tpaStaking.address, stake);
+    await tpaStaking.connect(u1).postDividend(stake);
 
     // Last staker should get remainder of pool
     expectedTpa = await tpaToken.balanceOf(tpaStaking.address);

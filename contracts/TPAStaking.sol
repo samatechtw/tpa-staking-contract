@@ -3,9 +3,10 @@
 pragma solidity ^0.8.4;
 
 import { Ownable } from "./Ownable.sol";
+import { Admin } from "./Admin.sol";
 import { IERC20 } from "./IERC20.sol";
 
-contract TPAStaking is Ownable {
+contract TPAStaking is Ownable, Admin {
 
     event Staked(address staker, uint256 amount);
     event Unstaked(address staker, uint256 amount);
@@ -75,7 +76,7 @@ contract TPAStaking is Ownable {
         return gains;
     }
 
-    function postDividend(uint256 amount) public {
+    function postDividend(uint256 amount) external onlyAdmin {
         require(stakedTPA > 0, "No stakers");
         uint256 allowance = token.allowance(msg.sender, address(this));
         require(allowance >= amount, "Allowance low");
