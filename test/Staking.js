@@ -9,13 +9,17 @@ const {
   shouldRevert,
   assertBN,
   postDividend,
+  UNSTAKE_TIME,
 } = require('./util');
 
 describe('Token contract', () => {
   const minimumStake = toBN(1000);
-  const unstakeTime = toBN(0);
+  // 30 days unstake time
+  const unstakeTime = toBN(UNSTAKE_TIME);
   let Staking;
+  let Locker;
   let tpaStaking;
+  let tpaLocker;
   let tpaToken;
   let owner;
   let u1;
@@ -26,16 +30,19 @@ describe('Token contract', () => {
   before(async () => {
     const tokenContract = await ethers.getContractFactory('TPA');
     Staking = await ethers.getContractFactory('TPAStaking');
+    Locker = await ethers.getContractFactory('TPALocker');
     [owner, u1, u2, u3, u4] = await ethers.getSigners();
 
     tpaToken = await tokenContract.deploy();
+    tpaLocker = await Locker.deploy(tpaToken.address);
     await tpaToken.deployed();
   });
 
   beforeEach(async () => {
     tpaStaking = await Staking.deploy(
-      tpaToken.address, unstakeTime, minimumStake,
+      tpaToken.address, tpaLocker.address, unstakeTime, minimumStake,
     );
+    tpaLocker.setStakingContract(tpaStaking.address);
   });
 
   it('Should set the owner and send tokens', async () => {
@@ -84,9 +91,9 @@ describe('Token contract', () => {
       stake,
     });
 
-    await assertUnstake({ tpaToken, tpaStaking, signer: u1, expectedTpa: stake });
-    await assertUnstake({ tpaToken, tpaStaking, signer: u2, expectedTpa: stake });
-    await assertUnstake({ tpaToken, tpaStaking, signer: u3, expectedTpa: stake });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u1, expectedTpa: stake });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u2, expectedTpa: stake });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u3, expectedTpa: stake });
   });
 
   it('Should unstake correctly with rewards', async () => {
@@ -103,8 +110,8 @@ describe('Token contract', () => {
 
     // First and second unstaker should get 1/3 of 4M
     let expectedTpa = (stake * toBN('4')) / toBN('3');
-    await assertUnstake({ tpaToken, tpaStaking, signer: u1, expectedTpa });
-    await assertUnstake({ tpaToken, tpaStaking, signer: u2, expectedTpa });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u1, expectedTpa });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u2, expectedTpa });
 
     // Add an admin for posting dividends
     await tpaStaking.addAdmin(u1.address);
@@ -113,7 +120,7 @@ describe('Token contract', () => {
 
     // Last staker should get remainder of pool
     expectedTpa = await tpaToken.balanceOf(tpaStaking.address);
-    await assertUnstake({ tpaToken, tpaStaking, signer: u3, expectedTpa });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u3, expectedTpa });
 
     assertBalance(tpaToken, tpaStaking.address, 0);
     const stakedTPA = await tpaStaking.stakedTPA();
@@ -136,6 +143,11 @@ describe('Token contract', () => {
       stake,
     });
 
+    // Removed admin cannot post dividend
+    await tpaStaking.removeAdmin(u1.address);
+    await tpaToken.connect(u1).approve(tpaStaking.address, stake);
+    await shouldRevert(tpaStaking.connect(u1).postDividend(stake), 'Only admin');
+
     // Two dividends without new stakers in between are merged
     await tpaStaking.postDividend(stake);
     await postDividend(tpaToken, tpaStaking, stake);
@@ -155,10 +167,10 @@ describe('Token contract', () => {
 
     // u2 gets half of second dividend
     let expectedTpa = stake + (stake / toBN(2));
-    await assertUnstake({ tpaToken, tpaStaking, signer: u2, expectedTpa });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u2, expectedTpa });
     // u1 gets remainder of second dividend plus first 2 dividends
     expectedTpa = stake + (stake * toBN(2)) + (stake / toBN(2));
-    await assertUnstake({ tpaToken, tpaStaking, signer: u1, expectedTpa });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u1, expectedTpa });
   });
 
   it('Can reinvest and withdraw dividends', async () => {
@@ -193,10 +205,10 @@ describe('Token contract', () => {
 
     // Stakes: u1=1M, u2=2M, u3=1M
     expectedTpa = stake + div2 / toBN('4');
-    await assertUnstake({ tpaToken, tpaStaking, signer: u1, expectedTpa });
-    await assertUnstake({ tpaToken, tpaStaking, signer: u3, expectedTpa });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u1, expectedTpa });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u3, expectedTpa });
     expectedTpa = stake * toBN('2') + div2 / toBN('2');
-    await assertUnstake({ tpaToken, tpaStaking, signer: u2, expectedTpa });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u2, expectedTpa });
   });
 
   it('Works with complex staking/rewards', async () => {
@@ -227,7 +239,7 @@ describe('Token contract', () => {
     });
 
     // Should receive original stake with no reward
-    await assertUnstake({ tpaToken, tpaStaking, signer: u3, expectedTpa: stake3 });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u3, expectedTpa: stake3 });
 
     // Stake twice
     await assertStake({
@@ -245,7 +257,7 @@ describe('Token contract', () => {
     });
 
     // Receive first and second stake with no reward
-    await assertUnstake({ tpaToken, tpaStaking, signer: u3, expectedTpa: stake3 + stake4 });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u3, expectedTpa: stake3 + stake4 });
 
     const stake5 = toBN('7000000e18');
     await assertStake({
@@ -260,11 +272,11 @@ describe('Token contract', () => {
     await postDividend(tpaToken, tpaStaking, div2);
 
     let expectedTpa = stake1 + (stake1 * div1) / toBN('3e24') + (stake1 * div2) / toBN('10e24');
-    await assertUnstake({ tpaToken, tpaStaking, signer: u1, expectedTpa });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u1, expectedTpa });
     // Add one for rounding since u2 gets the remainder of the first pool
     expectedTpa = toBN(1) + stake2 + (stake2 * div1) / toBN('3e24') + (stake2 * div2) / toBN('10e24');
-    await assertUnstake({ tpaToken, tpaStaking, signer: u2, expectedTpa });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u2, expectedTpa });
     expectedTpa = stake5 + (stake5 * div2) / toBN('10e24');
-    await assertUnstake({ tpaToken, tpaStaking, signer: u3, expectedTpa });
+    await assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer: u3, expectedTpa });
   });
 });

@@ -1,5 +1,9 @@
 const assert = require('assert');
 
+const DAY_S = 60 * 60 * 24;
+const UNSTAKE_DAYS = 30;
+const UNSTAKE_TIME = DAY_S * UNSTAKE_DAYS;
+
 const parseSci = (value) => {
   const eInd = value.indexOf('e');
   if(eInd !== -1) {
@@ -33,6 +37,22 @@ function assertBN(bn1, bn2, msg) {
   assert.strictEqual(bn1, bn2, `${msg}. ${bn1} !== ${bn2}`);
 }
 
+// Add days to a Date or millisecond timestamp
+function addDays(date, days) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+async function increaseTime(days, start) {
+  const now = new Date(start * 1000);
+  const later = addDays(now, days).getTime();
+  const time = Math.round((later - now.getTime()) / 1000);
+  await ethers.provider.send('evm_increaseTime', [time]);
+  await ethers.provider.send('evm_mine');
+  return start + time;
+}
+
 async function assertBalance(Token, address, amount) {
   const balance = await Token.balanceOf(address);
   assertBN(
@@ -61,10 +81,16 @@ async function assertStake({ tpaToken, tpaStaking, signers, stake }) {
   }
 }
 
-async function assertUnstake({ tpaToken, tpaStaking, signer, expectedTpa }) {
-  const initialTpa = toBN(await tpaToken.balanceOf(signer.address));
+async function assertUnstake({ tpaToken, tpaStaking, tpaLocker, signer, expectedTpa }) {
+  const initialUserTpa = toBN(await tpaToken.balanceOf(signer.address));
+  const initialLockerTpa = toBN(await tpaToken.balanceOf(tpaLocker.address));
   await tpaStaking.connect(signer).unstake();
-  await assertBalance(tpaToken, signer.address, initialTpa + toBN(expectedTpa));
+  await assertBalance(tpaToken, tpaLocker.address, initialLockerTpa + toBN(expectedTpa));
+
+  const latestBlock = await ethers.provider.getBlock('latest');
+  await increaseTime(UNSTAKE_DAYS + 1, latestBlock.timestamp);
+  await tpaLocker.connect(signer).unlock();
+  await assertBalance(tpaToken, signer.address, initialUserTpa + toBN(expectedTpa));
 }
 
 async function assertWithdraw({ tpaToken, tpaStaking, signer, expectedTpa }) {
@@ -98,6 +124,7 @@ const shouldRevert = async (action, expectedOutput, message) => {
 
 module.exports = {
   toBN,
+  increaseTime,
   assertBN,
   assertBalance,
   assertStake,
@@ -108,4 +135,6 @@ module.exports = {
   postDividend,
   toSafeNumber,
   shouldRevert,
+  UNSTAKE_TIME,
+  DAY_S,
 };

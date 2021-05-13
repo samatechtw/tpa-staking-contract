@@ -4,6 +4,7 @@ pragma solidity ^0.8.4;
 
 import { Ownable } from "./Ownable.sol";
 import { Admin } from "./Admin.sol";
+import { TPALocker } from "./TPALocker.sol";
 import { IERC20 } from "./IERC20.sol";
 
 contract TPAStaking is Ownable, Admin {
@@ -33,6 +34,9 @@ contract TPAStaking is Ownable, Admin {
     /// Token used for staking operations
     IERC20 public token;
 
+    /// Locker to hold tokens after unstaking
+    TPALocker public locker;
+
     /// Map of wallets to TPA stakes
     mapping(address => Stake) public stakes;
 
@@ -45,12 +49,13 @@ contract TPAStaking is Ownable, Admin {
     /// Minimum stakeable amount
     uint256 public minimumStake;
 
-    /// The amount of time unstaked tokens are locked for
+    /// The amount of time unstaked tokens are locked for (seconds)
     uint256 public unstakeTime;
 
     /// @notice Construct staking contract with initial configuration
-    constructor(address _token, uint256 _unstakeTime, uint256 _minimumStake) {
+    constructor(address _token, address _tpaLocker, uint256 _unstakeTime, uint256 _minimumStake) {
         token = IERC20(_token);
+        locker = TPALocker(_tpaLocker);
         unstakeTime = _unstakeTime;
         minimumStake = _minimumStake;
     }
@@ -131,7 +136,10 @@ contract TPAStaking is Ownable, Admin {
         stakeData.stake = 0;
         stakeData.dividendIndex = 0;
 
-        token.transfer(msg.sender, total);
+        token.transfer(address(locker), total);
+        uint256 releaseTime = block.timestamp + unstakeTime;
+
+        locker.stakingLock(msg.sender, total, releaseTime);
         emit Unstaked(msg.sender, total);
     }
 
