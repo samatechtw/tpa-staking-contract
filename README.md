@@ -16,6 +16,16 @@ Compile contracts
 npm run compile
 ```
 
+Run local Eth node for development
+```
+npm run dev
+```
+
+Deploy contracts to local node
+```
+npm run deploy:dev
+```
+
 ## Environment Variables
 
 * **UNSTAKE_PERIOD** - Period in which tokens are locked after un-staking
